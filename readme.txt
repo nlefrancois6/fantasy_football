@@ -6,10 +6,12 @@ Workflow:
 2) get_K_stats.py: Calculate K player stats and K matchup stats
 3) project_K_pts: Calculate projected K points based on player + matchup stats
 
-Scripts:
-load_data.py - Download play-by-play and weekly player data from nfl_data_py and save to csv
+Store all data in nfl_data.db using sqlite3
 
-get_K_stats.py - Load play-by-play data, extract player statistics for FGs and PATs, calculate fantasy points scored, and save to csv
+Scripts:
+load_data.py - Download play-by-play and weekly player data from nfl_data_py and save to db
+
+get_K_stats.py - Load play-by-play data, extract player statistics for FGs and PATs, calculate fantasy points scored, and save to db
 
 project_K_pts.py - Load K player and matchup stats, calculate expected number of attempts & makes by distance, then calculate expected fantasy points.
 
@@ -18,6 +20,8 @@ k_ppf.py - Preprocessing functions for kicking player statistics
 Kicker Scoping.ipynb - Workspace for developing ideas before adding them as scripts to the workflow
 
 Data:
+nfl_data.db - sqlite3 database containing all data tables
+
 pbp_2024.csv - Play-by-play data for 2024 season
 weekly_2024.csv - Player stat lines for each week in the 2024 season
 ftn_2024.csv - For The Numbers manual charting data. Not entirely sure what this contains, could be interesting for play predictor models or monte carlo simulation.

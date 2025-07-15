@@ -1,9 +1,18 @@
 import pandas as pd
+import sqlite3
 import k_ppf
 
 print('Loading play-by-play data')
 # Load the weekly data
-pbp = pd.read_csv('Data/pbp_2024.csv')
+db_path = 'Data/nfl_data.db'
+
+# Connect to the database, read the data, and close the connection
+with sqlite3.connect(db_path) as conn:
+    # SQL query to load data from the pbp_2024 table
+    query = "SELECT * FROM pbp_2024"
+
+    # Read the data into a pandas DataFrame
+    pbp = pd.read_sql_query(query, conn)
 
 print('Extracting kicker statistics from play-by-play data')
 #List of columns to keep for kicking data
@@ -47,9 +56,11 @@ print(def_summary[['defteam','games_played','total_attempts','attempts','total_f
 
 save_files = True
 if save_files:
-    print('Saving kicker & matchup statistics to csv')
-    kicker_summary.to_csv("Data/kicker_stats_2024.csv", index=False)
-    def_summary.to_csv("Data/KDEF_stats_2024.csv", index=False)
+    print('Saving kicker & matchup statistics to db')
+    with sqlite3.connect(db_path) as conn:
+        kicker_summary.to_sql("kicker_stats_2024", conn, if_exists="replace", index=False)
+        def_summary.to_sql("KDEF_stats_2024", conn, if_exists="replace", index=False)
     print('Files saved')
 
+print('Script complete')
 
