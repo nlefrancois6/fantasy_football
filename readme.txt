@@ -32,7 +32,7 @@ KDEF_stats_2024.csv - Kicker matchup statistics for 2024 season, with FGs binned
 Issues:
 - Resolve SettingWithCopyWarnings in k_ppf.fg_summary, pat_summary, and fantasy_summary functions
 - Some sort of script to run through the workflow scripts in order?
-- Get statistics for past 5 (or more) years
+- Get statistics for past 5 (or more) years and store in a single db, adding a year column
 - Set up a backtest to see how good my predictions are. PBP dataset can be cut off at week 12 and then predictions for week 13-17 can be compared to actual results
 - Include a volatility or boom/bust score using standard deviation of K & DEF attempts per game
 - Add home/away splits to stats, and maybe indoor/outdoor splits
