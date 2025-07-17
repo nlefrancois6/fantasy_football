@@ -30,14 +30,11 @@ if save_files:
 
     # Connect to SQLite database (it will be created if it doesn't exist)
     db_path = "Data/nfl_data.db"
-    conn = sqlite3.connect(db_path)
+    with sqlite3.connect(db_path) as conn:
+        # Save full and short PBP data to two different tables
+        pbp.to_sql("pbp_2024", conn, if_exists="replace", index=False)
+        pbp_short.to_sql("pbp_short_2024", conn, if_exists="replace", index=False)
 
-    # Save full and short PBP data to two different tables
-    pbp.to_sql("pbp_2024", conn, if_exists="replace", index=False)
-    pbp_short.to_sql("pbp_short_2024", conn, if_exists="replace", index=False)
-
-    # Close the connection
-    conn.close()
     print(f"Data saved to {db_path}")
 
 print("Script complete")

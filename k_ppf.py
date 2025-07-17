@@ -97,6 +97,11 @@ def get_fg_summary_k(fg_df):
         fill_value=0
     ).reset_index()
 
+    # Ensure all distance columns exist
+    for label in labels:
+        if label not in fg_summary.columns:
+            fg_summary[label] = 0
+    
     fg_summary['total_attempts'] = fg_summary[labels].sum(axis=1)
 
     # FG% table
@@ -105,6 +110,11 @@ def get_fg_summary_k(fg_df):
         columns='distance_range',
         values='fg_pct'
     ).reset_index()
+
+    # Ensure all FG% columns exist
+    for label in labels:
+        if label not in fg_pct.columns:
+            fg_pct[label] = 0
 
     # Rename FG% columns for clarity
     fg_pct.columns = ['kicker_player_id', 'kicker_player_name'] + [f'{label} FG%' for label in labels]
@@ -294,6 +304,11 @@ def get_fg_summary_def(fg_df):
         fill_value=0
     ).reset_index()
 
+    # Ensure all distance columns exist
+    for label in labels:
+        if label not in fg_summary.columns:
+            fg_summary[label] = 0
+            
     fg_summary['total_attempts'] = fg_summary[labels].sum(axis=1)
 
     # FG% table
@@ -302,6 +317,11 @@ def get_fg_summary_def(fg_df):
         columns='distance_range',
         values='fg_pct'
     ).reset_index()
+
+    # Ensure all FG% columns exist
+    for label in labels:
+        if label not in fg_pct.columns:
+            fg_pct[label] = 0
 
     # Rename FG% columns for clarity
     fg_pct.columns = ['defteam'] + [f'{label} FG%' for label in labels]
