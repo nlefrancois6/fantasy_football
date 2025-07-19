@@ -2,6 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import nfl_data_py as nfl
+from scipy.stats import spearmanr
+import os
 
 # Assign points based on FG made
 def fg_points(row):
@@ -54,6 +56,9 @@ def get_pat_summary_k(pat_df):
     # ---- 4. Sort ----
     pat_summary = pat_summary.sort_values('attempts', ascending=False)
 
+    #Rename 'made' and 'attempts' to avoid confusion with field goals
+    pat_summary = pat_summary.rename(columns={"made": "xp_made", "attempts": "xp_attempts"})
+
     return pat_summary
 
 def get_fg_summary_k(fg_df):
@@ -102,7 +107,7 @@ def get_fg_summary_k(fg_df):
         if label not in fg_summary.columns:
             fg_summary[label] = 0
     
-    fg_summary['total_attempts'] = fg_summary[labels].sum(axis=1)
+    fg_summary['fg_attempts'] = fg_summary[labels].sum(axis=1)
 
     # FG% table
     fg_pct = fg_stats.pivot_table(
@@ -117,13 +122,13 @@ def get_fg_summary_k(fg_df):
             fg_pct[label] = 0
 
     # Rename FG% columns for clarity
-    fg_pct.columns = ['kicker_player_id', 'kicker_player_name'] + [f'{label} FG%' for label in labels]
+    fg_pct.columns = ['kicker_player_id', 'kicker_player_name'] + [f'{label}_FG%' for label in labels]
 
     # ---- 5. Combine Attempts and FG% ----
     fg_summary = pd.merge(fg_summary, fg_pct, on=['kicker_player_id', 'kicker_player_name'])
 
     # ---- 6. Sort ----
-    fg_summary = fg_summary.sort_values('total_attempts', ascending=False)
+    fg_summary = fg_summary.sort_values('fg_attempts', ascending=False)
 
     return fg_summary
 
@@ -139,10 +144,10 @@ def get_kicker_summary(fg_summary,pat_summary,fantasy_summary):
     # Optional: Fill missing values with 0 (e.g., for kickers who didn't attempt PATs or FGs)
     kicker_summary = kicker_summary.fillna({
         '0-39': 0, '40-49': 0, '50-59': 0, '60+': 0,
-        'total_attempts': 0,
+        'fg_attempts': 0,
         '0-39 FG%': 0, '40-49 FG%': 0, '50-59 FG%': 0, '60+ FG%': 0,
-        'attempts': 0, 'made': 0, 'xp_pct': 0
-    }).sort_values('total_attempts', ascending=False)
+        'xp_attempts': 0, 'xp_made': 0, 'xp_pct': 0
+    }).sort_values('fg_attempts', ascending=False)
     
     # Merge fantasy points with kicker summary
     full_kicker_summary = pd.merge(
@@ -260,6 +265,10 @@ def get_pat_summary_def(pat_df):
 
     # ---- 4. Sort ----
     pat_def = pat_def.sort_values('attempts', ascending=False)
+
+    #Rename 'made' and 'attempts' to avoid confusion with field goals
+    pat_def = pat_def.rename(columns={"made": "xp_made", "attempts": "xp_attempts"})
+
     
     return pat_def
 
@@ -309,7 +318,7 @@ def get_fg_summary_def(fg_df):
         if label not in fg_summary.columns:
             fg_summary[label] = 0
             
-    fg_summary['total_attempts'] = fg_summary[labels].sum(axis=1)
+    fg_summary['fg_attempts'] = fg_summary[labels].sum(axis=1)
 
     # FG% table
     fg_pct = fg_stats.pivot_table(
@@ -324,13 +333,13 @@ def get_fg_summary_def(fg_df):
             fg_pct[label] = 0
 
     # Rename FG% columns for clarity
-    fg_pct.columns = ['defteam'] + [f'{label} FG%' for label in labels]
+    fg_pct.columns = ['defteam'] + [f'{label}_FG%' for label in labels]
 
     # ---- 5. Combine Attempts and FG% ----
     fg_summary = pd.merge(fg_summary, fg_pct, on=['defteam'])
 
     # ---- 6. Sort ----
-    fg_summary = fg_summary.sort_values('total_attempts', ascending=False)
+    fg_summary = fg_summary.sort_values('fg_attempts', ascending=False)
 
     return fg_summary
 
@@ -346,10 +355,10 @@ def get_def_summary(fg_summary,pat_summary,fantasy_summary):
     # Optional: Fill missing values with 0 (e.g., for teams who didn't attempt PATs or FGs)
     def_summary = def_summary.fillna({
         '0-39': 0, '40-49': 0, '50-59': 0, '60+': 0,
-        'total_attempts': 0,
+        'fg_attempts': 0,
         '0-39 FG%': 0, '40-49 FG%': 0, '50-59 FG%': 0, '60+ FG%': 0,
-        'attempts': 0, 'made': 0, 'xp_pct': 0
-    }).sort_values('total_attempts', ascending=False)
+        'xp_attempts': 0, 'xp_made': 0, 'xp_pct': 0
+    }).sort_values('fg_attempts', ascending=False)
     
     # Merge fantasy points with defense summary
     full_def_summary = pd.merge(
@@ -435,15 +444,9 @@ def get_pergame_def(df_k):
     # Preview
     return df_k
 
-def estimate_KDEF_matchup(kicker_name, defteam_name, df_k, df_def):
-    # Get kicker and defense rows
-    kicker_row = df_k[df_k['kicker_player_name'] == kicker_name]
-    if kicker_row.empty:
-        raise ValueError(f"Kicker '{kicker_name}' not found.")
-    
-    def_row = df_def[df_def['defteam'] == defteam_name]
-    if def_row.empty:
-        raise ValueError(f"Defense '{defteam_abbr}' not found.")
+def estimate_KDEF_matchup(kicker_name, defteam_name, kicker_row, def_row):
+    #Predict the fantasy points scored by a kicker given the K & DEF per game stats
+    #Naive average model: Expected attempts = avg(kicker + def), expected makes = kicker % * expected attempts
     
     # FG distance ranges and point values
     ranges = ['0-39', '40-49', '50-59', '60+']
@@ -454,14 +457,13 @@ def estimate_KDEF_matchup(kicker_name, defteam_name, df_k, df_def):
     expected_fg_attempts = {}
     expected_fg_makes = {}
     expected_fg_points = {}
-
     for r in ranges:
-        kicker_pg = kicker_row[f"{r} pg"].values[0]
-        def_pg = def_row[f"{r} pg"].values[0]
+        kicker_pg = kicker_row[f"{r}"]
+        def_pg = def_row[f"{r}"]
         avg_attempts = (kicker_pg + def_pg) / 2
         expected_fg_attempts[f"{r} expected"] = round(avg_attempts, 3)
         
-        fg_pct = kicker_row[f"{r} FG%"].values[0]
+        fg_pct = kicker_row[f"{r}_FG%"]
         makes = avg_attempts * fg_pct
         misses = avg_attempts * (1 - fg_pct)
         
@@ -470,15 +472,17 @@ def estimate_KDEF_matchup(kicker_name, defteam_name, df_k, df_def):
         expected_fg_points[f"{r} fantasy"] = round(fantasy_pts, 3)
         
     # --- PAT projection ---
-    kicker_pat_pg = kicker_row['attempts pg'].values[0]
-    def_pat_pg = def_row['attempts pg'].values[0]
+    kicker_pat_pg = kicker_row['xp_attempts']
+    def_pat_pg = def_row['xp_attempts']
     avg_pat_attempts = (kicker_pat_pg + def_pat_pg) / 2
     
-    kicker_pat_pct = kicker_row['xp_pct'].values[0]  # or change to correct PAT FG% column name
+    kicker_pat_pct = kicker_row['xp_pct']
     makes = avg_pat_attempts * kicker_pat_pct
     misses = avg_pat_attempts * (1 - kicker_pat_pct)
 
-    expected_pat_points = round(makes * 1 - misses * 1, 3)  # 1 pt per make, -1 per miss
+    # 1 pt per make, -1 per miss
+    expected_pat_points = round(makes * 1 - misses * 1, 3)
+    
 
     # --- Total ---
     total_fg_points = round(sum(expected_fg_points.values()), 2)
@@ -522,11 +526,14 @@ def get_weekly_schedule(year, week):
     schedule = nfl.import_schedules([year])
     return schedule[schedule['week'] == week]
 
-def generate_weekly_matchups(df_k, schedule_df):
-    """Build (kicker_name, defteam_abbr) matchups based on weekly schedule."""
+def generate_weekly_matchups(df_k, schedule_df, verbose=False):
+    """Build (kicker_name, defteam_abbr) matchups based on weekly schedule and output as df."""
     matchups = []
+
+    # Keep only unique kickers and teams for the week
+    unique_kickers = df_k[['kicker_player_name', 'posteam']].drop_duplicates()
     
-    for _, kicker in df_k.iterrows():
+    for _, kicker in unique_kickers.iterrows():
         kicker_name = kicker['kicker_player_name']
         team = kicker['posteam']
 
@@ -541,6 +548,103 @@ def generate_weekly_matchups(df_k, schedule_df):
             opponent = game['away_team'] if team == game['home_team'] else game['home_team']
             matchups.append((kicker_name, opponent))
         else:
-            print(f"️ No game found for kicker {kicker_name} ({team})")
+            if verbose:
+                print(f"️ No game found for kicker {kicker_name} ({team})")
     
-    return matchups
+    return pd.DataFrame(matchups, columns=['kicker_player_name', 'defteam'])
+
+def top_k_accuracy(df, k=5):
+    #Check how often predicted top k players are actual top k players
+    correct_count = 0
+    total_weeks = df['week'].nunique()
+    
+    for week in df['week'].unique():
+        week_df = df[df['week'] == week]
+
+        top_k_pred = week_df.nlargest(k, 'predicted_fp')['kicker'].tolist()
+        top_k_actual = week_df.nlargest(k, 'actual_fp')['kicker'].tolist()
+        
+        correct = len(set(top_k_pred) & set(top_k_actual))
+        correct_count += correct / k  # Normalize per week
+
+    return correct_count / total_weeks
+
+def weekly_spearman_corr(df):
+    #Calculate correlation between prediction & actual rankings
+    results = []
+
+    for week in df['week'].unique():
+        week_df = df[df['week'] == week][['predicted_fp', 'actual_fp']].dropna()
+        if len(week_df) >= 2:
+            corr, _ = spearmanr(week_df['predicted_fp'], week_df['actual_fp'])
+            results.append(corr)
+        else:
+            results.append(None)  # Not enough data for correlation
+    return results
+
+def mean_absolute_error(y_true, y_pred):
+    filtered = [(a, p) for a, p in zip(y_true, y_pred) if pd.notna(a) and pd.notna(p)]
+    if not filtered:
+        return None
+    errors = [abs(a - p) for a, p in filtered]
+    return sum(errors) / len(errors)
+
+def plot_weekly_spearman_corr(corrs, save_path='Fig/weekly_spearman_corr.png'):
+    # Remove None values and track their indices (weeks)
+    valid_corrs = [(i + 1, c) for i, c in enumerate(corrs) if c is not None]
+    if not valid_corrs:
+        print("No valid correlations to plot.")
+        return
+
+    weeks, values = zip(*valid_corrs)
+
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(weeks, values, marker='o', linestyle='-')
+    plt.title("Weekly Spearman Correlation (Predicted vs Actual FP Rankings)")
+    plt.xlabel("Week")
+    plt.ylabel("Spearman Correlation")
+    plt.ylim(-1.05, 1.05)
+    plt.xticks(range(min(weeks), max(weeks) + 1)) 
+    plt.grid(True)
+    plt.savefig(save_path)
+    plt.close()
+
+    print(f"Plot saved to {save_path}")
+
+def plot_rel_error_hist(df, n_bins=30, save_path='Fig/rel_error_hist.png'):
+    # Drop NaN or infinite values to avoid plotting issues
+    rel_errors = df['rel_error'].replace([float('inf'), -float('inf')], pd.NA).dropna()
+
+    if rel_errors.empty:
+        print("No valid relative error data to plot.")
+        return
+
+    # Compute stats
+    mean_val = rel_errors.mean()
+    std_val = rel_errors.std()
+    
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+    # Plot
+    plt.figure(figsize=(8, 5))
+    plt.hist(rel_errors, bins=n_bins, color='skyblue', edgecolor='black')
+
+    # Add mean and std lines
+    plt.axvline(mean_val, color='red', linestyle='dashed', linewidth=2, label=f'Mean = {mean_val:.3f}')
+    plt.axvline(mean_val + std_val, color='green', linestyle='dotted', linewidth=2, label=f'+1 SD = {mean_val + std_val:.3f}')
+    plt.axvline(mean_val - std_val, color='green', linestyle='dotted', linewidth=2, label=f'-1 SD = {mean_val - std_val:.3f}')
+
+    plt.title("Distribution of Relative Error")
+    plt.xlabel("Relative Error")
+    plt.ylabel("Frequency")
+    plt.legend()
+    plt.grid(axis='y', alpha=0.75)
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+
+    print(f"Histogram saved to {save_path}")
